@@ -2,11 +2,6 @@ from plumbum import local
 import os
 from glob import glob
 from unipath import Path
-# make folder for burst pdf
-
-# burst pdf
-# "pdftk {input_filename} burst"
-
 
 class ShellUtilityWrapper(object):
     """docstring for ShellUtilityWrapper"""
@@ -42,7 +37,24 @@ class GhostScript(ShellUtilityWrapper):
         if output_filename is None:
             # rename the filename from pdf to jpeg
             pass
+        command = ["-sDEVICE=jpg",'-o',output_filename,pdf_filename]
+        self(command)
+        # raise NotImplementedError
+
+    def jpeg_to_pdf(self,jpeg_filename, output_filename=None):
+        """
+        Takes the filename for a jpeg of a single page document and converts it to a single page pdf
+        :param jpeg_filename: filename of jpeg image
+        :type jpeg_filename: str
+        :param output_filename: filename of pdf page being produced
+        :type output_filename: str
+        :return: output_filename (if successful)
+        :rtype: str
+        """
         raise NotImplementedError
+        if output_filename is None:
+            # Todo: jpeg to pdf filename logic
+            raise NotImplementedError
 
     def pdf_to_png(self, pdf_filename, output_filename):
         raise NotImplementedError
@@ -91,7 +103,7 @@ class PdfTk(ShellUtilityWrapper):
             ".\doc_data.txt" (contains metadata about pdf that was burst)
             ".\page_{pagenumber}.pdf" (a 1 page pdf for each page in the file)
         """
-        self.cmd([pdf_filename, "burst"])
+        self([pdf_filename, "burst"])
 
     def get_filenames_for_pages_from_burst_file(self, filedir=None):
         """Get a list of filenames created after calling `self.burst_pdf`"""
@@ -103,11 +115,12 @@ class PdfTk(ShellUtilityWrapper):
 
     def parse_doc_data(self, doc_data_filename):
         """Get metadata from "doc_data.txt" created when burst operation is called"""
-        raise NotImplementedError(
-            "Need to write function to parse 'doc_data.txt'")
+        raise NotImplementedError("Need to write function to parse 'doc_data.txt'")
         metadata = {}
         with open(doc_data_filename) as f:
             pass
+
+    def combine_pages(self,listofpages,output_filename=None):
 
 
 class Deskew(object):
@@ -130,12 +143,11 @@ class Deskew(object):
                        s - skew detection stats, p - program parameters
         input:         Input image file
 
-  Supported file formats
+    Supported file formats
     Input:  BMP, JPG, PNG, JNG, GIF, DDS, TGA, PBM, PGM, PPM, PAM, PFM, PSD, TIF
     Output: BMP, JPG, PNG, JNG, GIF, DDS, TGA, PGM, PPM, PAM, PFM, PSD, TIF
     ================================================================================================
     """
-
     def __init__(self, shell_command="deskew", exe_location=None):
         """
         :param exe_loc: [None (if accessible from terminal) | The path of the executable]
