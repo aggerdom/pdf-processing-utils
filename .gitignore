@@ -1,0 +1,4 @@
+*.pyc
+.idea
+.idea/*
+tests/pg_*.pdf
