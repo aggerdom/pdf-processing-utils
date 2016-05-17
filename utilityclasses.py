@@ -2,14 +2,17 @@ from plumbum import local
 import os
 from glob import glob
 from unipath import Path
+import subprocess
+
 
 class ShellUtilityWrapper(object):
     """docstring for ShellUtilityWrapper"""
 
-    def __init__(self, shell_command, exe_location):
+    def __init__(self, shell_command, exe_location,projectpage=None):
         """
         Parent class that is used for figuring out what plumbum command to provide for a class.
         """
+        self.projectpage = projectpage
         self.exe_location = exe_location
         # basic shell_command without arguments (ex: "ls")
         self.shell_command = shell_command
@@ -19,7 +22,7 @@ class ShellUtilityWrapper(object):
         else:
             self.cmd = local[self.exe_location]
 
-    def route_to_download_instructions(self,download_url):
+    def route_to_download_instructions(self, download_url):
         pass
 
     def __call__(self, *args, **kwargs):
@@ -30,18 +33,19 @@ class ShellUtilityWrapper(object):
 class GhostScript(ShellUtilityWrapper):
     """docstring for GhostScript"""
 
-    def __init__(self, shell_command="gs", exe_location=None):
+    def __init__(self, shell_command="gs", exe_location=r"c:\pf\gs\gs9.16\bin\gswin32c.exe"):
+        # todo: figure out how to use gswin32c by default to suppress gui
         ShellUtilityWrapper.__init__(self, shell_command, exe_location)
 
     def pdf_to_jpeg(self, pdf_filename, output_filename=None):
         if output_filename is None:
             # rename the filename from pdf to jpeg
             pass
-        command = ["-sDEVICE=jpg",'-o',output_filename,pdf_filename]
+        command = ["-sDEVICE=jpg", '-o', output_filename, pdf_filename]
         self(command)
         # raise NotImplementedError
 
-    def jpeg_to_pdf(self,jpeg_filename, output_filename=None):
+    def jpeg_to_pdf(self, jpeg_filename, output_filename=None):
         """
         Takes the filename for a jpeg of a single page document and converts it to a single page pdf
         :param jpeg_filename: filename of jpeg image
@@ -56,8 +60,44 @@ class GhostScript(ShellUtilityWrapper):
             # Todo: jpeg to pdf filename logic
             raise NotImplementedError
 
-    def pdf_to_png(self, pdf_filename, output_filename):
-        raise NotImplementedError
+    def pdf_to_png(self, pdf_filename, output_filename, resolution="300x300", firstpage=1, lastpage=1):
+        # todo: figure out how to speed up
+        command = ["-sDEVICE=pngalpha",
+                   "-dTextAlphaBits=4",
+                   "-dGraphicsAlphaBits=4",
+                   "-dBATCH",
+                   "-q"
+                   "-dNOPAUSE",
+                   "-dNOPROMPT",
+                   "-r" + resolution,
+                   "-dFirstPage=" + str(firstpage),
+                   "-dLastPage=" + str(lastpage),
+                   "-sOutputFile=" + output_filename,
+                   "-f" + pdf_filename]
+        self(command)
+        # subprocess.call([r"C:\tmp\pdfprocessing"+r"\{}".format(output_filename)])
+
+    def pdf_to_multipage_tiff(self,pdf_filename,output_filename):
+        self(["-dNOPAUSE",
+              "-q",
+              "-r500",
+              "-sDEVICE=tiffg4",
+              "-dBATCH",
+              "-sOutputFile="+output_filename,
+              pdf_filename])
+
+    def merge_pdfs(self, list_of_pdfs, output_filename, papersize="a4"):
+        # todo: get merge_pdfs working
+        command = ["-q",
+                   "-sPAPERSIZE=" + papersize,
+                   "-dNOPAUSE",
+                   "-dNOPROMPT",
+                   "-dBATCH",
+                   "-sDEVICE=pdfwrite",
+                   "-sOutputFile={outputname}".format(outputname=output_filename),
+                   ] + list_of_pdfs
+        output = self(command)
+        return output
 
 
 class PdfTk(ShellUtilityWrapper):
@@ -120,7 +160,8 @@ class PdfTk(ShellUtilityWrapper):
         with open(doc_data_filename) as f:
             pass
 
-    def combine_pages(self,listofpages,output_filename=None):
+    def combine_pages(self, listofpages, output_filename=None):
+        pass
 
 
 class Deskew(object):
@@ -148,14 +189,16 @@ class Deskew(object):
     Output: BMP, JPG, PNG, JNG, GIF, DDS, TGA, PGM, PPM, PAM, PFM, PSD, TIF
     ================================================================================================
     """
+
     def __init__(self, shell_command="deskew", exe_location=None):
         """
         :param exe_loc: [None (if accessible from terminal) | The path of the executable]
         """
-        ShellUtilityWrapper.__init__(self, shell_command, exe_location)
-        self.project_url = "http://galfar.vevb.net/wp/projects/deskew/"
+        project_url = "http://galfar.vevb.net/wp/projects/deskew/"
+        ShellUtilityWrapper.__init__(self, shell_command, exe_location,projectpage=project_url)
 
-    def deskew_file(self,input_filename, output_filename=None, angle=None, threshhold=None, bg_color=None, pixel_format=None, rect=None, info=None):
+    def deskew_file(self, input_filename, output_filename=None, angle=None, threshhold=None, bg_color=None,
+                    pixel_format=None, rect=None, info=None):
         self.validate_input_filename(input_filename)
         self.validate_output_filename(output_filename)
         flag_val_pairs = {"-o": output_filename,
@@ -184,7 +227,7 @@ class Deskew(object):
                          ".psd", ".tif")
         if input_filename not in valid_formats:
             error_message = "Deskew input file format error: {} is not one of these filetypes {}".format(
-                input_filename, ",".join(valid_formats))
+                    input_filename, ",".join(valid_formats))
             raise ValueError(error_message)
 
     def validate_output_filename(self, output_filename):
@@ -194,21 +237,20 @@ class Deskew(object):
                          ".tif")
         if output_fileformat not in valid_formats:
             error_message = "Deskew input file format error: {} is not one of these filetypes {}".format(
-                output_filename, ",".join(valid_formats))
+                    output_filename, ",".join(valid_formats))
             raise ValueError(error_message)
+
+class Convert(ShellUtilityWrapper):
+    def __init__(self, shell_command="convert", exe_location=None):
+        ShellUtilityWrapper.__init__(self, shell_command, exe_location)
+
 
 class PdfXChangeViewer(object):
     """
     Automates OCRing a pdf and adding a textlayer using PdfXChangeViewer
     """
-    raise NotImplementedError
+
     def __init__(self, arg):
+        raise NotImplementedError
         super(PdfXChangeViewer, self).__init__()
         self.arg = arg
-
-
-def main():
-    pdftk = PdfTk()
-
-if __name__ == '__main__':
-    main()
